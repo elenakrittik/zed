@@ -9333,6 +9333,83 @@ async fn test_mutlibuffer_in_navigation_history(cx: &mut gpui::TestAppContext) {
         .unwrap();
 }
 
+#[gpui::test]
+async fn test_toggle_hunk_diff(executor: BackgroundExecutor, cx: &mut gpui::TestAppContext) {
+    init_test(cx, |_| {});
+
+    let mut cx = EditorTestContext::new(cx).await;
+
+    let diff_base = r#"
+        use some::mod;
+
+        const A: u32 = 42;
+
+        fn main() {
+            println!("hello");
+
+            println!("world");
+        }
+        "#
+    .unindent();
+
+    cx.set_state(
+        &r#"
+        use some::modified;
+
+        ˇ
+        fn main() {
+            println!("hello there");
+
+            println!("around the");
+            println!("world");
+        }
+        "#
+        .unindent(),
+    );
+
+    cx.set_diff_base(Some(&diff_base));
+    executor.run_until_parked();
+    cx.update_editor(|editor, cx| {
+        let snapshot = editor.snapshot(cx);
+        let all_hunks = snapshot
+            .display_snapshot
+            .buffer_snapshot
+            .git_diff_hunks_in_range(0..snapshot.display_snapshot.max_point().row())
+            .map(|hunk| (hunk.status(), hunk.associated_range))
+            .collect::<Vec<_>>();
+        vec![
+            (DiffHunkStatus::Modified, 0..0),
+            (DiffHunkStatus::Removed, 0..0),
+            (DiffHunkStatus::Modified, 0..0),
+            (DiffHunkStatus::Added, 0..0),
+        ];
+    });
+
+    cx.update_editor(|editor, cx| {
+        //Wrap around the bottom of the buffer
+        for _ in 0..3 {
+            editor.go_to_hunk(&GoToHunk, cx);
+            editor.toggle_git_hunk_diff(&ToggleGitHunkDiff, cx);
+            dbg!(&editor.expanded_hunks);
+        }
+    });
+
+    cx.assert_editor_state(
+        &r#"
+        ˇuse some::modified;
+
+
+        fn main() {
+            println!("hello there");
+
+            println!("around the");
+            println!("world");
+        }
+        "#
+        .unindent(),
+    );
+}
+
 fn empty_range(row: usize, column: usize) -> Range<DisplayPoint> {
     let point = DisplayPoint::new(row as u32, column as u32);
     point..point
