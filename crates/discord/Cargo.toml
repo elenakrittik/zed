@@ -1,0 +1,14 @@
+[package]
+name = "discord"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "GPL-3.0-or-later"
+
+[lib]
+path="src/discord.rs"
+doctest = false
+
+[dependencies]
+gpui.workspace = true
+discord-rpc-client = "^0.4"
